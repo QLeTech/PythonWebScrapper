@@ -1,0 +1,189 @@
+from attr import Attribute
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+import time
+import chromedriver_autoinstaller
+import csv
+from selenium.common.exceptions import NoSuchElementException
+from tomlkit import string
+chromedriver_autoinstaller.install()
+
+# list of permit numbers goes here.
+
+permit_list = ['BL2022-0872', 'BL2022-0497', 'BL2022-0568',
+               'BL2022-0520', 'BL2022-0496', 'EL2022-0353']
+
+
+list1 = []
+
+# for loop to iterate through permit numbers list would start here.
+for permit in permit_list:
+    print('loop started')
+
+    url = 'https://etrakit.pinecrest-fl.gov/eTRAKiT3/Search/permit.aspx'
+    driver = webdriver.Chrome()
+    driver.get(url)
+
+    print("Page is loading...")
+    time.sleep(0.5)
+
+    textbox = driver.find_element(
+        By.XPATH, '//*[@id="cplMain_txtSearchString"]')
+    textbox.send_keys(permit)
+    textbox.send_keys(Keys.ENTER)
+
+    time.sleep(1)
+
+    table = driver.find_element(
+        By.ID, 'ctl00_cplMain_rgSearchRslts_ctl00__0').click()
+
+    time.sleep(1)
+
+    # click on Right Arrow two times
+    driver.find_element(
+        By.CLASS_NAME, 'rtsNextArrow').click()
+
+    driver.find_element(
+        By.CLASS_NAME, 'rtsNextArrow').click()
+
+    # click on reviews
+    driver.find_element(
+        By.XPATH, '//*[@id="ctl00_cplMain_tcSearchDetails"]/div/ul/li[7]/a/span/span/span').click()
+
+    time.sleep(0.3)
+
+    # Table 2 is identified
+    table2 = driver.find_element(
+        By.XPATH, '//*[@id="cplMain_RadPageViewReviews"]/table')
+    print('Table Found!')
+
+    # can search for elements with stricter parameters. For e.g. inside a specific table:
+    # finding all More Info elements (have tag name <a> inside the Table).
+    table3 = table2.find_elements(By.TAG_NAME, 'table')[1]
+    print(table3)
+    comment_info = table3.find_elements(By.TAG_NAME, 'a')
+
+    print(comment_info)
+
+    c = 0
+    for i in comment_info:
+        comment_info[c].click()  # clicks in More Info
+        time.sleep(1)
+        driver.find_element(
+            By.XPATH, '//*[@id="RadWindowWrapper_ctl00_cplMain_rw"]/table/tbody/tr[2]/td[2]/iframe')  # could possibly delete this
+        driver.switch_to.frame(driver.find_elements(By.TAG_NAME, "iframe")[
+            0])  # switches to HTML frame with comments
+        # finds comments made by reviewer
+        commentType = driver.find_element(By.ID, 'lblType')
+        print(f"Review # {c + 1}: {commentType.text}")
+        comment_status = driver.find_element(By.ID, 'lblStatus')
+        dateSubmitted = driver.find_element(By.ID, 'lblSent')
+        try:
+            dateDue = driver.find_element(By.ID, 'lblDateDue')
+        except NoSuchElementException:
+            dateDue = "Pending Due Date"
+        dateCompleted = driver.find_element(By.ID, 'lblRec')
+        Reviewer = driver.find_element(By.ID, 'lblReviewer')
+        comments = driver.find_elements(By.XPATH, '//*[@id="divNotes2"]')
+
+        for i in comments:
+            print(i.text)  # gets comments from More Info.
+            try:
+                list1.append([permit, commentType.text,
+                             f"Review # {c+1}", comment_status.text, dateSubmitted.text, dateDue.text, dateCompleted.text, Reviewer.text, i.text])
+            except AttributeError:
+                list1.append([permit, commentType.text,
+                              f"Review # {c+1}", comment_status.text, dateSubmitted.text, dateDue, dateCompleted.text, Reviewer.text, i.text])
+        driver.switch_to.parent_frame()  # switches back to main HTML to find close button
+        driver.find_element(  # closes the window
+            By.XPATH, '//*[@id="RadWindowWrapper_ctl00_cplMain_rw"]/table/tbody/tr[1]/td[2]/table/tbody/tr/td[3]/ul/li/a').click()
+        c += 1
+        time.sleep(1)
+    print(c)  # Should get list with 15 items. It does!
+    driver.close()  # closes current session. loop creates new session.
+
+print(list1)
+
+stringlist = []
+
+for i in list1:
+    for j in i:
+        stringlist.append(j)
+
+print(stringlist)
+
+
+with open('commentsTest.csv', 'w', newline='') as newfile:
+    # pending: add permit number to first column
+    fieldnames = ['Permit Number', 'Comment Type', 'Status',
+                  'Submitted Date', 'Review Due', 'Review Completed', "Reviewer", 'Review Number', 'Comment']
+    writer = csv.writer(newfile)
+    writer.writerows(list1)
+
+
+# possible problem, it rewrites the whole CSV file, eliminating previous fetched comments.
+# possible solution: just add all of the comments in one swoop to the CSV file, after for loop finishes.
+# Note: after all data is fetched, import to CSV file, no where in between.
+
+
+# Notifier Possible Path:
+# Save a version of the number of comments per permit in memory. --> Have to scrape website to get # of reviews or count <a> elements which we know how to do already.
+# Make calls to the webpage every 10 minutes. --> Import time module?
+# If number of comments changes, then grab HTML from last comment and send it via text message.
+# For testing and not having to wait for new comment: set the # comments to 2 less than original so you can try once to save data then twice to see if it's working.
+# ONLY AFTER TESTING, then try to implement external device like Raspberry Pie.
+# Run on an external device, maybe a low-power consumption Raspberry Pi?
+# You will learn about Raspberry Pi which is dope.
+# Will also learn how to store variables in memory.
+#
+
+
+'''
+for i in comment_info:
+    i.click()
+    time.sleep(3)
+'''
+
+
+'''
+# click on More Info
+driver.find_element(
+    By.ID, 'ctl00_cplMain_ctl10_rgReviewInfo_ctl00_KY:2206101227431711_moreinfoKY:2206101227431711').click()
+
+time.sleep(1)
+
+driver.find_element(By.XPATH, '//*[@id="RadWindowWrapper_ctl00_cplMain_rw"]/table/tbody/tr[2]/td[2]/iframe'))
+
+driver.switch_to.frame(driver.find_elements(By.TAG_NAME, "iframe")[0])
+
+# print(driver.find_element(By.XPATH, '/html'))
+
+
+comments = driver.find_elements(
+    By.XPATH, '//*[@id="divNotes2"]')
+
+print(comments)
+
+for i in comments:
+    print(i.text)
+# prints out comments for one review.
+
+time.sleep(3)
+
+
+# pending getting actual text.
+
+
+# driver.get('https://etrakit.pinecrest-fl.gov/etrakit3/moreinfo/reviewInfo.aspx?Group=PERMIT&ActivityNo=BL2022-0872&RecordID=KY:2206101227431711&Respond=null')
+
+# Figure out Java problem.
+# Java-scripted website that retrieves data from a server.
+# Loads data specific to what the user needs instead of
+# having to reload the whole website.
+# Have to do this by THIS weekend. No more.
+
+# Possible solution: Make a GET request to the server using the http link
+# containing the comments.
+
+'''
